@@ -1,0 +1,2 @@
+hikari~=2.0.0.dev120
+hikari-lightbulb==2.3.3
