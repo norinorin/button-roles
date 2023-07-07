@@ -139,6 +139,15 @@ def _has_permissions(perms: hikari.Permissions):
     )
 
 
+def _editable(error):
+    def _check(ctx):
+        if ctx.options.target.author.id != app.get_me().id:
+            raise RuntimeError(error)
+        return True
+
+    return lightbulb.add_checks(lightbulb.Check(_check))
+
+
 @app.listen()
 async def on_interaction(event: hikari.InteractionCreateEvent):
     cmd = getattr(event.interaction, "custom_id", "")
@@ -154,6 +163,17 @@ async def on_interaction(event: hikari.InteractionCreateEvent):
             await _handle_role_request(event.interaction)
         elif cmd.startswith("mode"):
             await _handle_mode_change(event.interaction)
+
+
+@app.listen()
+async def on_error(event: lightbulb.CommandErrorEvent):
+    if isinstance(event.exception, lightbulb.CheckFailure):
+        await event.context.respond(
+            event.exception.__cause__, flags=hikari.MessageFlag.EPHEMERAL
+        )
+        return
+
+    raise event.exception
 
 
 @app.command
@@ -175,20 +195,15 @@ async def new(ctx: lightbulb.SlashContext):
 
 @app.command
 @_has_permissions(hikari.Permissions.MANAGE_ROLES)
+@_editable(
+    "Can only add buttons to a message sent by the bot. Please create a new message using the /send command."
+)
 @lightbulb.command("Edit Roles", "Edit the self-assignable roles")
 @lightbulb.implements(lightbulb.MessageCommand)
 async def edit_roles(ctx: lightbulb.MessageContext):
-    target = ctx.options.target
-    if target.author.id != app.get_me().id:
-        await ctx.respond(
-            "Can only add buttons to a message sent by the bot. Please create a new message using the /send command.",
-            flags=hikari.MessageFlag.EPHEMERAL,
-        )
-        return
-
     select = (
         app.rest.build_message_action_row()
-        .add_text_menu(f"mode-{target.id}")
+        .add_text_menu(f"mode-{ctx.options.target.id}")
         .add_option(
             "Normal", Mode.NORMAL, description="Users get to pick multiple roles"
         )
@@ -203,34 +218,20 @@ async def edit_roles(ctx: lightbulb.MessageContext):
 
 @app.command
 @_has_permissions(hikari.Permissions.MANAGE_ROLES)
+@_editable("Can only remove buttons from a message sent by the bot.")
 @lightbulb.command("Remove Buttons", "Remove buttons from the message")
 @lightbulb.implements(lightbulb.MessageCommand)
 async def remove_buttons(ctx: lightbulb.MessageContext):
-    target = ctx.options.target
-    if target.author.id != app.get_me().id:
-        await ctx.respond(
-            "Can only remove buttons from a message sent by the bot.",
-            flags=hikari.MessageFlag.EPHEMERAL,
-        )
-        return
-
-    await target.edit(components=[])
+    await ctx.options.target.edit(components=[])
     await ctx.respond("Removed the buttons!", flags=hikari.MessageFlag.EPHEMERAL)
 
 
 @app.command
 @_has_permissions(hikari.Permissions.MANAGE_MESSAGES)
+@_editable("Can only edit messages sent by the bot.")
 @lightbulb.command("Edit Message", "Edit a message")
 @lightbulb.implements(lightbulb.MessageCommand)
 async def remove_buttons(ctx: lightbulb.MessageContext):
-    target = ctx.options.target
-    if target.author.id != app.get_me().id:
-        await ctx.respond(
-            "Can only edit messages sent by the bot.",
-            flags=hikari.MessageFlag.EPHEMERAL,
-        )
-        return
-
     text_input = app.rest.build_modal_action_row().add_text_input(
         "message",
         "New message",
@@ -239,7 +240,9 @@ async def remove_buttons(ctx: lightbulb.MessageContext):
         max_length=2048,
     )
     await ctx.interaction.create_modal_response(
-        "Type the new message here", f"edit-{target.id}", component=text_input
+        "Type the new message here",
+        f"edit-{ctx.options.target.id}",
+        component=text_input,
     )
 
 
