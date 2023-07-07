@@ -40,6 +40,19 @@ async def _handle_message_send_request(event: hikari.InteractionCreateEvent):
     )
 
 
+async def _handle_message_edit_request(event: hikari.InteractionCreateEvent):
+    assert isinstance(event.interaction, hikari.ModalInteraction)
+    await event.interaction.create_initial_response(
+        hikari.ResponseType.DEFERRED_MESSAGE_CREATE, flags=hikari.MessageFlag.EPHEMERAL
+    )
+    msg = await app.rest.edit_message(
+        event.interaction.channel_id,
+        event.interaction.custom_id[5:],
+        event.interaction.components[0][0].value,
+    )
+    await event.interaction.edit_initial_response(f"Successfully edited the message!")
+
+
 async def _handle_update_buttons_request(interaction: hikari.ComponentInteraction):
     await interaction.create_initial_response(
         hikari.ResponseType.DEFERRED_MESSAGE_UPDATE
@@ -128,8 +141,11 @@ def _has_permissions(perms: hikari.Permissions):
 
 @app.listen()
 async def on_interaction(event: hikari.InteractionCreateEvent):
-    if getattr(event.interaction, "custom_id", "") == "msg":
+    cmd = getattr(event.interaction, "custom_id", "")
+    if cmd == "msg":
         await _handle_message_send_request(event)
+    elif cmd.startswith("edit"):
+        await _handle_message_edit_request(event)
     elif isinstance(event.interaction, hikari.ComponentInteraction):
         cmd = event.interaction.custom_id
         if cmd.startswith("u"):
@@ -200,6 +216,31 @@ async def remove_buttons(ctx: lightbulb.MessageContext):
 
     await target.edit(components=[])
     await ctx.respond("Removed the buttons!", flags=hikari.MessageFlag.EPHEMERAL)
+
+
+@app.command
+@_has_permissions(hikari.Permissions.MANAGE_MESSAGES)
+@lightbulb.command("Edit Message", "Edit a message")
+@lightbulb.implements(lightbulb.MessageCommand)
+async def remove_buttons(ctx: lightbulb.MessageContext):
+    target = ctx.options.target
+    if target.author.id != app.get_me().id:
+        await ctx.respond(
+            "Can only edit messages sent by the bot.",
+            flags=hikari.MessageFlag.EPHEMERAL,
+        )
+        return
+
+    text_input = app.rest.build_modal_action_row().add_text_input(
+        "message",
+        "New message",
+        style=hikari.TextInputStyle.PARAGRAPH,
+        required=True,
+        max_length=2048,
+    )
+    await ctx.interaction.create_modal_response(
+        "Type the new message here", f"edit-{target.id}", component=text_input
+    )
 
 
 app.run()
