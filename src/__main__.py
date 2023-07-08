@@ -231,7 +231,7 @@ async def remove_buttons(ctx: lightbulb.MessageContext):
 @_editable("Can only edit messages sent by the bot.")
 @lightbulb.command("Edit Message", "Edit a message")
 @lightbulb.implements(lightbulb.MessageCommand)
-async def remove_buttons(ctx: lightbulb.MessageContext):
+async def edit_message(ctx: lightbulb.MessageContext):
     text_input = app.rest.build_modal_action_row().add_text_input(
         "message",
         "New message",
