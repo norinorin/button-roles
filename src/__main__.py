@@ -114,13 +114,16 @@ async def _handle_role_request(interaction: hikari.ComponentInteraction):
         else:
             action = "remove"
             await interaction.member.remove_role(role_id)
+    except hikari.ForbiddenError:
+        await interaction.edit_initial_response(
+            f"Failed to {action} the role: make sure the role is below my highest role!"
+        )
     except Exception as e:
         await interaction.edit_initial_response(f"Failed to {action} the role: {e}")
-        return
-
-    await interaction.edit_initial_response(
-        f"Successfully {action.rstrip('e')}ed {app.cache.get_role(role_id)}"
-    )
+    else:
+        await interaction.edit_initial_response(
+            f"Successfully {action.rstrip('e')}ed {app.cache.get_role(role_id)}"
+        )
 
 
 async def _handle_mode_change(interaction: hikari.ComponentInteraction):
