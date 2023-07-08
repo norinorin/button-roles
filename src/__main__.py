@@ -58,7 +58,7 @@ async def _handle_update_buttons_request(interaction: hikari.ComponentInteractio
         hikari.ResponseType.DEFERRED_MESSAGE_UPDATE
     )
     target_id = interaction.custom_id[3:]
-    roles = [*interaction.resolved.roles.values()][::-1]
+    roles = [r for r in interaction.resolved.roles.values() if not r.is_managed][::-1]
     chunked_roles = [roles[i : i + 5] for i in range(0, len(roles), 5)]
     rows = [app.rest.build_message_action_row() for _ in range(len(chunked_roles))]
     for i, roles in enumerate(chunked_roles):
@@ -71,9 +71,12 @@ async def _handle_update_buttons_request(interaction: hikari.ComponentInteractio
             )
 
     await app.rest.edit_message(interaction.channel_id, target_id, components=rows)
-    await interaction.edit_initial_response(
-        "Successfully updated the roles!", components=[]
+    skipped = [r.name for r in interaction.resolved.roles.values() if r.is_managed]
+    text = (
+        "Sucessfully updated the roles!"
+        + f"\n\nManaged roles ruled out: ({', '.join(skipped)})" * bool(skipped)
     )
+    await interaction.edit_initial_response(text, components=[])
 
 
 def _get_roles_from_buttons(rows):
